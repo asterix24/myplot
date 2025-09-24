@@ -6,6 +6,7 @@ import csv
 from optparse import OptionParser
 import numpy
 import pylab
+from scipy.fftpack import fft
 from matplotlib import style
 style.use("bmh")
 
@@ -56,6 +57,15 @@ parser.add_option("-k", "--scatter-plot", dest="scatter_plot",
 parser.add_option("--py-data", dest="py_row_data",
                   default=None,
                   help="Get data from python data array")
+
+parser.add_option("--fft", dest="fft_graph",
+                  action="store_true",
+                  default=False,
+                  help="Get data from python data array")
+
+parser.add_option("--fft-rate", dest="fft_sampling_rate",
+                  default=None,
+                  help="Sampling rate of sampled data")
 
 (options, args) = parser.parse_args()
 
@@ -251,10 +261,55 @@ for n, m in enumerate(plot_col):
         title = options.py_row_data
     pylab.title(f"{os.path.basename(title)}")
 
-
     # Plot raw data
-    l = None
-    if options.x_series is not None:
+    label_plot = None
+
+    if options.fft_graph:
+        if options.fft_sampling_rate is None:
+            print("Invalid sample rate")
+            sys.exit(1)
+
+        #if options.fft_test:
+        #    print("FFT Test mode.")
+        #    N = 1000
+        #    T = 1.0 / 1000.0
+        #    x = numpy.linspace(0.0, N * T, N)
+        #    y = numpy.sin(50.0 * 2.0 * numpy.pi * x) + 0.5 * \
+        #    numpy.sin(80.0 * 2.0 * numpy.pi * x)
+
+        print(f"Sample Freq: {options.fft_sampling_rate}")
+        print(f"Sample Number: {len(raw_data)}")
+
+        T = 1.0 / float(options.fft_sampling_rate)
+        N = len(raw_data)
+        yf = fft(raw_data)
+        yf = 2.0 / N * numpy.abs(yf[1:int(N / 2)])
+        xf = numpy.linspace(0.0, 1.0 / (2.0 * T), int(N / 2))
+
+        # Find max peaks
+        THRESHOLD = 0.10
+        th = (max(yf) - min(yf)) * THRESHOLD
+        peaks = []
+        for idx, val in enumerate(yf):
+            if val >= th:
+                try:
+                    peaks.append(
+                        (round(20 * numpy.log10(val), 2), round(xf[idx], 2)))
+                except IndexError:
+                    print("max index")
+                    continue
+
+        print("Find peaks:")
+        s = ""
+        for i in peaks:
+            a, f = i
+            s += "%sdB @%s\n" % (a, f)
+            print("- %sdB @%s" % (a, f))
+
+        pylab.plot(xf[1:], yf, label='%s th:%s%%\n%s' % (label, THRESHOLD * 100, s))
+        pylab.title("FFT")
+
+    elif options.x_series is not None:
         pylab.title(f"{options.data_file}")
         x_ser = int(options.x_series)
         if x_ser > len(data):
@@ -264,16 +319,17 @@ for n, m in enumerate(plot_col):
         n = min(len(data[x_ser]), len(raw_data))
 
         if options.scatter_plot:
-            l = pylab.scatter(data[x_ser][:n], raw_data[:n], s=[12], marker='x', label=label)
+            label_plot = pylab.scatter(data[x_ser][:n], raw_data[:n], s=[12], marker='x', label=label)
         else:
-            l, = pylab.plot(data[x_ser][:n], raw_data[:n], ls=ls_style, lw=lw_width, label=label)
+            label_plot, = pylab.plot(data[x_ser][:n], raw_data[:n], ls=ls_style, lw=lw_width, label=label)
     else:
         if options.scatter_plot:
-            l = pylab.scatter(raw_data, raw_data[:n], s=[12], marker='x', label=label)
+            label_plot = pylab.scatter(raw_data, raw_data[:n], s=[12], marker='x', label=label)
         else:
-            l, = pylab.plot(raw_data, ls=ls_style, lw=lw_width, label=label)
+            label_plot, = pylab.plot(raw_data, ls=ls_style, lw=lw_width, label=label)
 
-    label_hand.append(l)
+    label_hand.append(label_plot)
+
 
 if options.x_up is not None:
     pylab.xlim(xmax=float(options.x_up))
