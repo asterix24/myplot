@@ -67,6 +67,10 @@ parser.add_option("--fft-rate", dest="fft_sampling_rate",
                   default=None,
                   help="Sampling rate of sampled data")
 
+parser.add_option("--fft-peak", dest="fft_peak_threshold",
+                  default=0.1,
+                  help="Sampling rate of sampled data")
+
 (options, args) = parser.parse_args()
 
 
@@ -146,7 +150,7 @@ if options.data_file is not None and options.py_row_data is None:
                     v = fix(v, n)
                     if v is not None:
                         l.append(v)
-                data.append(l)
+                    data[n].append(l)
             else:
                 if not hdr:
                     print(row)
@@ -287,8 +291,7 @@ for n, m in enumerate(plot_col):
         xf = numpy.linspace(0.0, 1.0 / (2.0 * T), int(N / 2))
 
         # Find max peaks
-        THRESHOLD = 0.10
-        th = (max(yf) - min(yf)) * THRESHOLD
+        th = (max(yf) - min(yf)) * float(options.fft_peak_threshold)
         peaks = []
         for idx, val in enumerate(yf):
             if val >= th:
@@ -306,7 +309,7 @@ for n, m in enumerate(plot_col):
             s += "%sdB @%s\n" % (a, f)
             print("- %sdB @%s" % (a, f))
 
-        pylab.plot(xf[1:], yf, label='%s th:%s%%\n%s' % (label, THRESHOLD * 100, s))
+        pylab.plot(xf[1:], yf, label='%s th:%0.2s%%\n%s' % (label, options.fft_peak_threshold * 100, s))
         pylab.title("FFT")
 
     elif options.x_series is not None:
