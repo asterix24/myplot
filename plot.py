@@ -54,8 +54,7 @@ parser.add_option("-k", "--scatter-plot", dest="scatter_plot",
                   help="Show scatter plot")
 
 parser.add_option("--py-data", dest="py_row_data",
-                  action="store_true",
-                  default=False,
+                  default=None,
                   help="Get data from python data array")
 
 (options, args) = parser.parse_args()
@@ -83,12 +82,13 @@ data = defaultdict(list)
 if options.traspone_lines:
     data = []
 
-def fix(v):
+def fix(v, ncol):
     try:
-        v = v.replace(',', '.')
+        if type(v) != float:
+            v = v.replace(',', '.')
         v = float(v)
-        if n in PROCESS:
-            v = PROCESS[n](v)
+        if ncol in PROCESS:
+            v = PROCESS[ncol](v)
     except ValueError as e:
         #print(">>>", v, e)
         return None
@@ -98,27 +98,34 @@ def fix(v):
 
     return v
 
-if options.py_row_data:
+if options.py_row_data is not None:
     try:
-        import rowdata
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("raw_data", options.py_row_data)
+        raw_data = importlib.util.module_from_spec(spec)
+        sys.modules["raw_data"] = raw_data
+        spec.loader.exec_module(raw_data)
     except ImportError as e:
-        print(e, "Missing python file rawdata.py")
+        print("Missing python file rawdata.py: ", e)
 
         print(parser.print_help())
         sys.exit(1)
 
-    for m in dir(rowdata):
+    idx = 0
+    for m in dir(raw_data):
         if m.startswith("_"):
             continue
-        d = getattr(rowdata, m)
-        data.append([m] + [fix(d) for i in d])
+        d = getattr(raw_data, m)
+        hdr.append(m)
+        data[idx] = [fix(i, idx) for i in d]
+        idx += 1
 
-if options.data_file is None and not options.py_row_data:
+if options.data_file is None and options.py_row_data is None:
     print(f"{sys.argv[0]} -f <file.csv> [colum]")
     print(parser.print_help())
     sys.exit(1)
 
-if options.data_file is not None:
+if options.data_file is not None and options.py_row_data is None:
     with open(options.data_file, newline='') as csvfile:
         for row in csv.reader(csvfile, delimiter=options.csv_sep):
             if options.traspone_lines:
@@ -126,7 +133,7 @@ if options.data_file is not None:
                 print(row[0])
                 l = list()
                 for n, v in enumerate(row):
-                    v = fix(v)
+                    v = fix(v, n)
                     if v is not None:
                         l.append(v)
                 data.append(l)
@@ -135,7 +142,7 @@ if options.data_file is not None:
                     print(row)
                     hdr = row
                 for n, v in enumerate(row):
-                    v = fix(v)
+                    v = fix(v, n)
                     if v is not None:
                         data[n].append(v)
 
@@ -239,7 +246,10 @@ for n, m in enumerate(plot_col):
     print(f"Col[{m:5d}] min[{s_min:8.5f}] max[{s_max:8.5f}] sg[{sigma:8.5f}]"
           "rms[{rms: 8.5f}] avg[{avg: 8.5f}] Nomal[{options.module_max}]")
 
-    pylab.title(f"{os.path.basename(options.data_file)}")
+    title = options.data_file
+    if options.data_file is None:
+        title = options.py_row_data
+    pylab.title(f"{os.path.basename(title)}")
 
 
     # Plot raw data
