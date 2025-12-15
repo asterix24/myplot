@@ -3,6 +3,7 @@ from collections import defaultdict
 import os
 import sys
 import csv
+import re
 from optparse import OptionParser
 import numpy
 import pylab
@@ -127,6 +128,13 @@ parser.add_option(
     help="Sampling rate of sampled data",
 )
 
+parser.add_option(
+    "--filter",
+    dest="filter_tag",
+    default=None,
+    help="Filert column by given pattern",
+)
+
 (options, args) = parser.parse_args()
 
 
@@ -188,6 +196,11 @@ if options.py_row_data is not None:
         if m.startswith("_"):
             continue
         d = getattr(raw_data, m)
+        if options.filter_tag is not None:
+            tag = re.compile(options.filter_tag)
+            if not tag.findall(m):
+                continue
+
         hdr.append(m)
         data[idx] = [fix(i, idx) for i in d]
         idx += 1
