@@ -250,7 +250,14 @@ if options.data_file is not None and options.py_row_data is None:
 
 plot_col = range(len(data))
 if select:
-    plot_col = map(int, args)
+    if len(args) == 1:
+        try:
+            plot_col = range(*map(int, re.sub( r'[:.,]', " ", args[0]).split()))
+        except TypeError as e:
+            print(f"pattern range non corretto {args}")
+            sys.exit(1)
+    else:
+        plot_col = map(int, args)
 
 plot_col = list(plot_col)
 
