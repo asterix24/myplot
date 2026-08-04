@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import array
 from collections import defaultdict
 import os
 import sys
@@ -177,23 +178,33 @@ def fix(v, ncol):
     return v
 
 
+def iter_samples(values):
+    if isinstance(values, array.array):
+        return values
+    if isinstance(values, (list, tuple)):
+        return values
+    raise TypeError(f"unsupported sample type {type(values)!r}")
+
+
 if options.py_row_data is not None:
     try:
         import importlib.util
 
         spec = importlib.util.spec_from_file_location("raw_data", options.py_row_data)
         raw_data = importlib.util.module_from_spec(spec)
+        # MicroPython logs samples as array('f', [...])
+        raw_data.array = array.array
         sys.modules["raw_data"] = raw_data
         spec.loader.exec_module(raw_data)
-    except ImportError as e:
-        print("Missing python file rawdata.py: ", e)
+    except (ImportError, SyntaxError, TypeError, NameError) as e:
+        print("Failed to load python data file: ", e)
 
         print(parser.print_help())
         sys.exit(1)
 
     idx = 0
     for m in dir(raw_data):
-        if m.startswith("_"):
+        if m.startswith("_") or m == "array":
             continue
         d = getattr(raw_data, m)
         if options.filter_tag is not None:
@@ -201,8 +212,14 @@ if options.py_row_data is not None:
             if not tag.findall(m):
                 continue
 
+        try:
+            samples = iter_samples(d)
+        except TypeError as e:
+            print(f"skip {m}: {e}")
+            continue
+
         hdr.append(m)
-        data[idx] = [fix(i, idx) for i in d]
+        data[idx] = [fix(i, idx) for i in samples]
         idx += 1
 
 if options.data_file is None and options.py_row_data is None:
